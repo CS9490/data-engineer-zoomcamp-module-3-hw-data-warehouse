@@ -185,7 +185,10 @@ Therefore, the best strategy is:
 The query used to make the partitioned table:
 
 ```sql
-
+CREATE OR REPLACE TABLE `module-3-486600.ny_taxi_data_2024.yellow_tripdata_partitioned`
+PARTITION BY DATE(tpep_dropoff_datetime)
+CLUSTER BY VendorID AS
+SELECT * FROM `module-3-486600.ny_taxi_data_2024.yellow_tripdata_non_partitioned`;
 ```
 
 ## Question 6. Partition benefits
@@ -205,6 +208,43 @@ Choose the answer which most closely matches.
 - 5.87 MB for non-partitioned table and 0 MB for the partitioned table
 - 310.31 MB for non-partitioned table and 285.64 MB for the partitioned table
 
+### Question 6 Answer
+
+The query I came up with is the following:
+
+```sql
+SELECT DISTINCT(VendorID)
+FROM <replace with partitioned and non-partitioned tables>
+WHERE tpep_dropoff_datetime BETWEEN '2024-03-01' AND '2024-03-15';
+```
+
+---
+
+For the regular table, I got the following prediction from BQ: 
+
+This query will process 310.24 MB when run.
+
+```sql
+SELECT DISTINCT(VendorID)
+FROM `module-3-486600.ny_taxi_data_2024.yellow_tripdata_non_partitioned`
+WHERE tpep_dropoff_datetime BETWEEN '2024-03-01' AND '2024-03-15';
+```
+
+---
+
+For the partitioned table, I got the following prediction from BQ:
+
+This query will process 26.84 MB when run.
+
+```sql
+SELECT DISTINCT(VendorID)
+FROM `module-3-486600.ny_taxi_data_2024.yellow_tripdata_partitioned`
+WHERE tpep_dropoff_datetime BETWEEN '2024-03-01' AND '2024-03-15';
+```
+
+Therefore, the answer is:
+
+- **310.24 MB for non-partitioned table and 26.84 MB for the partitioned table**
 
 ## Question 7. External table storage
 
@@ -215,13 +255,54 @@ Where is the data stored in the External Table you created?
 - GCP Bucket
 - Big Table
 
+### Question 7 Answer
+
+The data for the External Table is stored within my GCP Bucket, as external tables in BQ have the data in their original storage location. 
+
+If you look within the details of the External Table, it will also say the Source URI(s) (Uniform Resource Identifier) as a path to my GCP Bucket with the wildcard to pull in all avaliable months of 2024 yellow taxi trip data:
+
+```
+gs://nyc-tl-data-cs9490/yellow_tripdata_2024-*.parquet
+```
+
+Therefore, the answer is:
+
+- GCP Bucket
+
 ## Question 8. Clustering best practices
 
 It is best practice in Big Query to always cluster your data:
 - True
 - False
 
+### Question 8 Answer
+
+It is not always best practice in Big Query to cluster data. For tables that have smaller amounts of data or don't have very large cardinality in its columns for aggregation or querying, clustering the data can end up adding significant costs as it will incur more metadata reads, as well as unnecessary metadata maintenance when new data is inserted.
+
+The answer is:
+- False
 
 ## Question 9. Understanding table scans
 
 No Points: Write a `SELECT count(*)` query FROM the materialized table you created. How many bytes does it estimate will be read? Why?
+
+### Question 9 Answer
+
+The query I wrote is the following:
+
+```sql
+SELECT COUNT(*) 
+FROM `module-3-486600.ny_taxi_data_2024.yellow_tripdata_non_partitioned`
+```
+
+BQ estimates 0 bytes will be read. The reason for this is because BQ knows the number of rows within the source table itself, and so simply returns the value stored within the table's metadata as opposed to pulling in the table and doing the count itself.
+
+This can be proven by adding a random WHERE clause:
+
+```sql
+SELECT COUNT(*) 
+FROM `module-3-486600.ny_taxi_data_2024.yellow_tripdata_non_partitioned`
+WHERE VendorID = 2
+```
+
+The prediction for reading this table now is that 155.12 MB will be read. This is due to the fact that the count of rows where VendorID = 2 is **NOT** stored within the table's metadata, and so BQ will actually need to load in the data and query it in order to provide us with the count.
